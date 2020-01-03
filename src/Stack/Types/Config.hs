@@ -327,6 +327,11 @@ data Config =
          -- ^ Parameters for templates.
          ,configScmInit             :: !(Maybe SCM)
          -- ^ Initialize SCM (e.g. git) when creating new projects.
+         ,configDefaultRepoService  :: !(Maybe Text)
+         -- ^ The default repo service to use when none is specified.
+         -- (If Nothing, the default is used.)
+         ,configRepoServices        :: !(Map Text Text)
+         -- ^ Additional repo services from where to fetch templates.
          ,configGhcOptionsByName    :: !(Map PackageName [Text])
          -- ^ Additional GHC options to apply to specific packages.
          ,configGhcOptionsByCat     :: !(Map ApplyGhcOptions [Text])
@@ -811,6 +816,10 @@ data ConfigMonoid =
     -- ^ Template parameters.
     ,configMonoidScmInit             :: !(First SCM)
     -- ^ Initialize SCM (e.g. git init) when making new projects?
+    ,configMonoidDefaultRepoService  :: !(First Text)
+    -- ^ See: 'configDefaultRepoService'
+    ,configMonoidRepoServices        :: !(Map Text Text)
+    -- ^ See: 'configRepoServices'
     ,configMonoidGhcOptionsByName    :: !(MonoidMap PackageName (Monoid.Dual [Text]))
     -- ^ See 'configGhcOptionsByName'. Uses 'Monoid.Dual' so that
     -- options from the configs on the right come first, so that they
@@ -919,13 +928,15 @@ parseConfigMonoidObject rootDir obj = do
     configMonoidConcurrentTests <- First <$> obj ..:? configMonoidConcurrentTestsName
     configMonoidLocalBinPath <- First <$> obj ..:? configMonoidLocalBinPathName
     templates <- obj ..:? "templates"
-    (configMonoidScmInit,configMonoidTemplateParameters) <-
+    (configMonoidScmInit,configMonoidTemplateParameters,configMonoidDefaultRepoService,configMonoidRepoServices) <-
       case templates of
-        Nothing -> return (First Nothing,M.empty)
+        Nothing -> return (First Nothing,M.empty,First Nothing,M.empty)
         Just tobj -> do
           scmInit <- tobj ..:? configMonoidScmInitName
           params <- tobj ..:? configMonoidTemplateParametersName
-          return (First scmInit,fromMaybe M.empty params)
+          repoService <- tobj ..:? configMonoidDefaultRepoServiceName
+          repoServices <- tobj ..:? configMonoidRepoServicesName
+          return (First scmInit,fromMaybe M.empty params,First repoService,fromMaybe M.empty repoServices)
     configMonoidCompilerCheck <- First <$> obj ..:? configMonoidCompilerCheckName
     configMonoidCompilerRepository <- First <$> (obj ..:? configMonoidCompilerRepositoryName)
 
@@ -1074,6 +1085,12 @@ configMonoidScmInitName = "scm-init"
 
 configMonoidTemplateParametersName :: Text
 configMonoidTemplateParametersName = "params"
+
+configMonoidDefaultRepoServiceName :: Text
+configMonoidDefaultRepoServiceName = "repo-service"
+
+configMonoidRepoServicesName :: Text
+configMonoidRepoServicesName = "repo-services"
 
 configMonoidCompilerCheckName :: Text
 configMonoidCompilerCheckName = "compiler-check"
